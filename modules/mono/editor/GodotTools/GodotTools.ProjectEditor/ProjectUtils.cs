@@ -1,72 +1,99 @@
+using System;
 using GodotTools.Core;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
-using DotNet.Globbing;
+using System.Linq;
 using Microsoft.Build.Construction;
+using Microsoft.Build.Globbing;
 
 namespace GodotTools.ProjectEditor
 {
+    public sealed class MSBuildProject
+    {
+        internal ProjectRootElement Root { get; set; }
+
+        public bool HasUnsavedChanges { get; set; }
+
+        public void Save() => Root.Save();
+
+        public MSBuildProject(ProjectRootElement root)
+        {
+            Root = root;
+        }
+    }
+
     public static class ProjectUtils
     {
-        public static void AddItemToProjectChecked(string projectPath, string itemType, string include)
+        public static MSBuildProject Open(string path)
         {
-            var dir = Directory.GetParent(projectPath).FullName;
-            var root = ProjectRootElement.Open(projectPath);
-            var normalizedInclude = include.RelativeToPath(dir).Replace("/", "\\");
-
-            if (root.AddItemChecked(itemType, normalizedInclude))
-                root.Save();
+            var root = ProjectRootElement.Open(path);
+            return root != null ? new MSBuildProject(root) : null;
         }
 
-        private static string[] GetAllFilesRecursive(string rootDirectory, string mask)
+        private static List<string> GetAllFilesRecursive(string rootDirectory, string mask)
         {
             string[] files = Directory.GetFiles(rootDirectory, mask, SearchOption.AllDirectories);
 
             // We want relative paths
-            for (int i = 0; i < files.Length; i++) {
+            for (int i = 0; i < files.Length; i++)
+            {
                 files[i] = files[i].RelativeToPath(rootDirectory);
             }
 
-            return files;
+            return new List<string>(files);
         }
 
-        public static string[] GetIncludeFiles(string projectPath, string itemType)
+        // NOTE: Assumes auto-including items. Only used by the scripts metadata generator, which will be replaced with source generators in the future.
+        public static IEnumerable<string> GetIncludeFiles(string projectPath, string itemType)
         {
-            var result = new List<string>();
-            var existingFiles = GetAllFilesRecursive(Path.GetDirectoryName(projectPath), "*.cs");
-
-            GlobOptions globOptions = new GlobOptions();
-            globOptions.Evaluation.CaseInsensitive = false;
+            var excluded = new List<string>();
+            var includedFiles = GetAllFilesRecursive(Path.GetDirectoryName(projectPath), "*.cs");
 
             var root = ProjectRootElement.Open(projectPath);
+            Debug.Assert(root != null);
 
-            foreach (var itemGroup in root.ItemGroups)
+            foreach (var item in root.Items)
             {
-                if (itemGroup.Condition.Length != 0)
+                if (string.IsNullOrEmpty(item.Condition))
                     continue;
 
-                foreach (var item in itemGroup.Items)
-                {
-                    if (item.ItemType != itemType)
-                        continue;
+                if (item.ItemType != itemType)
+                    continue;
 
-                    string normalizedInclude = item.Include.NormalizePath();
+                string normalizedRemove = item.Remove.NormalizePath();
 
-                    var glob = Glob.Parse(normalizedInclude, globOptions);
-
-                    // TODO Check somehow if path has no blob to avoid the following loop...
-
-                    foreach (var existingFile in existingFiles)
-                    {
-                        if (glob.IsMatch(existingFile))
-                        {
-                            result.Add(existingFile);
-                        }
-                    }
-                }
+                var glob = MSBuildGlob.Parse(normalizedRemove);
+                excluded.AddRange(includedFiles.Where(includedFile => glob.IsMatch(includedFile)));
             }
 
-            return result.ToArray();
+            includedFiles.RemoveAll(f => excluded.Contains(f));
+
+            return includedFiles;
+        }
+
+        public static void MigrateToProjectSdksStyle(MSBuildProject project, string projectName)
+        {
+            var origRoot = project.Root;
+
+            if (!string.IsNullOrEmpty(origRoot.Sdk))
+                return;
+
+            project.Root = ProjectGenerator.GenGameProject(projectName);
+            project.Root.FullPath = origRoot.FullPath;
+            project.HasUnsavedChanges = true;
+        }
+
+        public static void EnsureGodotSdkIsUpToDate(MSBuildProject project)
+        {
+            var root = project.Root;
+            string godotSdkAttrValue = ProjectGenerator.GodotSdkAttrValue;
+
+            if (!string.IsNullOrEmpty(root.Sdk) && root.Sdk.Trim().Equals(godotSdkAttrValue, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            root.Sdk = godotSdkAttrValue;
+            project.HasUnsavedChanges = true;
         }
     }
 }

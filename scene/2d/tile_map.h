@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2019 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2019 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -31,8 +31,8 @@
 #ifndef TILE_MAP_H
 #define TILE_MAP_H
 
-#include "core/self_list.h"
-#include "core/vset.h"
+#include "core/templates/self_list.h"
+#include "core/templates/vset.h"
 #include "scene/2d/navigation_2d.h"
 #include "scene/2d/node_2d.h"
 #include "scene/resources/tile_set.h"
@@ -40,7 +40,6 @@
 class CollisionObject2D;
 
 class TileMap : public Node2D {
-
 	GDCLASS(TileMap, Node2D);
 
 public:
@@ -71,28 +70,34 @@ private:
 	};
 
 	Ref<TileSet> tile_set;
-	Size2i cell_size;
-	int quadrant_size;
-	Mode mode;
-	Transform2D custom_transform;
-	HalfOffset half_offset;
-	bool use_parent;
-	CollisionObject2D *collision_parent;
-	bool use_kinematic;
-	Navigation2D *navigation;
+	Size2i cell_size = Size2(64, 64);
+	int quadrant_size = 16;
+	Mode mode = MODE_SQUARE;
+	Transform2D custom_transform = Transform2D(64, 0, 0, 64, 0, 0);
+	HalfOffset half_offset = HALF_OFFSET_DISABLED;
+	bool use_parent = false;
+	CollisionObject2D *collision_parent = nullptr;
+	bool use_kinematic = false;
+	Navigation2D *navigation = nullptr;
 
 	union PosKey {
-
 		struct {
 			int16_t x;
 			int16_t y;
 		};
-		uint32_t key;
+		uint32_t key = 0;
 
 		//using a more precise comparison so the regions can be sorted later
 		bool operator<(const PosKey &p_k) const { return (y == p_k.y) ? x < p_k.x : y < p_k.y; }
 
 		bool operator==(const PosKey &p_k) const { return (y == p_k.y && x == p_k.x); }
+
+		PosKey to_quadrant(const int &p_quadrant_size) const {
+			// rounding down, instead of simply rounding towards zero (truncating)
+			return PosKey(
+					x > 0 ? x / p_quadrant_size : (x - (p_quadrant_size - 1)) / p_quadrant_size,
+					y > 0 ? y / p_quadrant_size : (y - (p_quadrant_size - 1)) / p_quadrant_size);
+		}
 
 		PosKey(int16_t p_x, int16_t p_y) {
 			x = p_x;
@@ -105,7 +110,6 @@ private:
 	};
 
 	union Cell {
-
 		struct {
 			int32_t id : 24;
 			bool flip_h : 1;
@@ -115,24 +119,22 @@ private:
 			int16_t autotile_coord_y : 16;
 		};
 
-		uint64_t _u64t;
-		Cell() { _u64t = 0; }
+		uint64_t _u64t = 0;
 	};
 
 	Map<PosKey, Cell> tile_map;
 	List<PosKey> dirty_bitmask;
 
 	struct Quadrant {
-
 		Vector2 pos;
 		List<RID> canvas_items;
 		RID body;
-		uint32_t shape_owner_id;
+		uint32_t shape_owner_id = 0;
 
 		SelfList<Quadrant> dirty_list;
 
 		struct NavPoly {
-			int id;
+			RID region;
 			Transform2D xform;
 		};
 
@@ -173,27 +175,27 @@ private:
 
 	SelfList<Quadrant>::List dirty_quadrant_list;
 
-	bool pending_update;
+	bool pending_update = false;
 
 	Rect2 rect_cache;
-	bool rect_cache_dirty;
+	bool rect_cache_dirty = true;
 	Rect2 used_size_cache;
-	bool used_size_cache_dirty;
-	bool quadrant_order_dirty;
-	bool y_sort_mode;
-	bool compatibility_mode;
-	bool centered_textures;
-	bool clip_uv;
-	float fp_adjust;
-	float friction;
-	float bounce;
-	uint32_t collision_layer;
-	uint32_t collision_mask;
-	mutable DataFormat format;
+	bool used_size_cache_dirty = true;
+	bool quadrant_order_dirty = false;
+	bool use_y_sort = false;
+	bool compatibility_mode = false;
+	bool centered_textures = false;
+	bool clip_uv = false;
+	float fp_adjust = 0.00001;
+	float friction = 1.0;
+	float bounce = 0.0;
+	uint32_t collision_layer = 1;
+	uint32_t collision_mask = 1;
+	mutable DataFormat format = FORMAT_1; // Assume lowest possible format if none is present
 
-	TileOrigin tile_origin;
+	TileOrigin tile_origin = TILE_ORIGIN_TOP_LEFT;
 
-	int occluder_light_mask;
+	int occluder_light_mask = 1;
 
 	void _fix_cell_transform(Transform2D &xform, const Cell &p_cell, const Vector2 &p_offset, const Size2 &p_sc);
 
@@ -213,8 +215,8 @@ private:
 
 	_FORCE_INLINE_ int _get_quadrant_size() const;
 
-	void _set_tile_data(const PoolVector<int> &p_data);
-	PoolVector<int> _get_tile_data() const;
+	void _set_tile_data(const Vector<int> &p_data);
+	Vector<int> _get_tile_data() const;
 
 	void _set_old_cell_size(int p_size) { set_cell_size(Size2(p_size, p_size)); }
 	int _get_old_cell_size() const { return cell_size.x; }
@@ -229,15 +231,16 @@ protected:
 	void _notification(int p_what);
 	static void _bind_methods();
 
-	virtual void _validate_property(PropertyInfo &property) const;
-	virtual void _changed_callback(Object *p_changed, const char *p_prop);
+	virtual void _validate_property(PropertyInfo &property) const override;
 
 public:
 	enum {
 		INVALID_CELL = -1
 	};
 
-	virtual Rect2 _edit_get_rect() const;
+#ifdef TOOLS_ENABLED
+	virtual Rect2 _edit_get_rect() const override;
+#endif
 
 	void set_tileset(const Ref<TileSet> &p_tileset);
 	Ref<TileSet> get_tileset() const;
@@ -310,8 +313,8 @@ public:
 	Vector2 map_to_world(const Vector2 &p_pos, bool p_ignore_ofs = false) const;
 	Vector2 world_to_map(const Vector2 &p_pos) const;
 
-	void set_y_sort_mode(bool p_enable);
-	bool is_y_sort_mode_enabled() const;
+	void set_y_sort_enabled(bool p_enable);
+	bool is_y_sort_enabled() const;
 
 	void set_compatibility_mode(bool p_enable);
 	bool is_compatibility_mode_enabled() const;
@@ -319,23 +322,27 @@ public:
 	void set_centered_textures(bool p_enable);
 	bool is_centered_textures_enabled() const;
 
-	Array get_used_cells() const;
-	Array get_used_cells_by_id(int p_id) const;
+	TypedArray<Vector2i> get_used_cells() const;
+	TypedArray<Vector2i> get_used_cells_by_index(int p_index) const;
 	Rect2 get_used_rect(); // Not const because of cache
 
 	void set_occluder_light_mask(int p_mask);
 	int get_occluder_light_mask() const;
 
-	virtual void set_light_mask(int p_light_mask);
+	virtual void set_light_mask(int p_light_mask) override;
 
-	virtual void set_material(const Ref<Material> &p_material);
+	virtual void set_material(const Ref<Material> &p_material) override;
 
-	virtual void set_use_parent_material(bool p_use_parent_material);
+	virtual void set_use_parent_material(bool p_use_parent_material) override;
 
 	void set_clip_uv(bool p_enable);
 	bool get_clip_uv() const;
 
-	String get_configuration_warning() const;
+	String get_configuration_warning() const override;
+
+	virtual void set_texture_filter(CanvasItem::TextureFilter p_texture_filter) override;
+
+	virtual void set_texture_repeat(CanvasItem::TextureRepeat p_texture_repeat) override;
 
 	void fix_invalid_tiles();
 	void clear();

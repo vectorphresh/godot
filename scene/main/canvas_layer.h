@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2019 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2019 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -36,31 +36,34 @@
 
 class Viewport;
 class CanvasLayer : public Node {
-
 	GDCLASS(CanvasLayer, Node);
 
-	bool locrotscale_dirty;
+	bool locrotscale_dirty = false;
 	Vector2 ofs;
-	Size2 scale;
-	real_t rot;
-	int layer;
+	Size2 scale = Vector2(1, 1);
+	real_t rot = 0.0;
+	int layer = 1;
 	Transform2D transform;
 	RID canvas;
 
 	ObjectID custom_viewport_id; // to check validity
-	Viewport *custom_viewport;
+	Viewport *custom_viewport = nullptr;
 
 	RID viewport;
-	Viewport *vp;
+	Viewport *vp = nullptr;
 
-	int sort_index;
+	int sort_index = 0;
 
-	bool follow_viewport;
-	float follow_viewport_scale;
+	bool follow_viewport = false;
+	float follow_viewport_scale = 1.0;
 
 	void _update_xform();
 	void _update_locrotscale();
 	void _update_follow_viewport(bool p_force_exit = false);
+
+#ifdef TOOLS_ENABLED
+	void _validate_property(PropertyInfo &property) const override;
+#endif
 
 protected:
 	void _notification(int p_what);

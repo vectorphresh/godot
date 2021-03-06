@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2019 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2019 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -39,24 +39,24 @@
 #include "scene/gui/text_edit.h"
 #include "scene/main/timer.h"
 #include "scene/resources/shader.h"
-#include "servers/visual/shader_language.h"
+#include "servers/rendering/shader_language.h"
 
 class ShaderTextEditor : public CodeTextEditor {
-
 	GDCLASS(ShaderTextEditor, CodeTextEditor);
 
+	Ref<CodeHighlighter> syntax_highlighter;
 	Ref<Shader> shader;
 
 	void _check_shader_mode();
 
 protected:
 	static void _bind_methods();
-	virtual void _load_theme_settings();
+	virtual void _load_theme_settings() override;
 
-	virtual void _code_complete_script(const String &p_code, List<ScriptCodeCompletionOption> *r_options);
+	virtual void _code_complete_script(const String &p_code, List<ScriptCodeCompletionOption> *r_options) override;
 
 public:
-	virtual void _validate_script();
+	virtual void _validate_script() override;
 
 	void reload_text();
 
@@ -66,11 +66,9 @@ public:
 };
 
 class ShaderEditor : public PanelContainer {
-
 	GDCLASS(ShaderEditor, PanelContainer);
 
 	enum {
-
 		EDIT_UNDO,
 		EDIT_REDO,
 		EDIT_CUT,
@@ -94,13 +92,13 @@ class ShaderEditor : public PanelContainer {
 		BOOKMARK_GOTO_NEXT,
 		BOOKMARK_GOTO_PREV,
 		BOOKMARK_REMOVE_ALL,
-
+		HELP_DOCS,
 	};
 
 	MenuButton *edit_menu;
 	MenuButton *search_menu;
-	MenuButton *bookmarks_menu;
-	MenuButton *settings_menu;
+	PopupMenu *bookmarks_menu;
+	MenuButton *help_menu;
 	PopupMenu *context_menu;
 	uint64_t idle;
 
@@ -122,7 +120,7 @@ class ShaderEditor : public PanelContainer {
 protected:
 	void _notification(int p_what);
 	static void _bind_methods();
-	void _make_context_menu(bool p_selection);
+	void _make_context_menu(bool p_selection, Vector2 p_position);
 	void _text_edit_gui_input(const Ref<InputEvent> &ev);
 
 	void _update_bookmark_list();
@@ -136,14 +134,13 @@ public:
 
 	void goto_line_selection(int p_line, int p_begin, int p_end);
 
-	virtual Size2 get_minimum_size() const { return Size2(0, 200); }
+	virtual Size2 get_minimum_size() const override { return Size2(0, 200); }
 	void save_external_data(const String &p_str = "");
 
 	ShaderEditor(EditorNode *p_node);
 };
 
 class ShaderEditorPlugin : public EditorPlugin {
-
 	GDCLASS(ShaderEditorPlugin, EditorPlugin);
 
 	bool _2d;
@@ -152,17 +149,17 @@ class ShaderEditorPlugin : public EditorPlugin {
 	Button *button;
 
 public:
-	virtual String get_name() const { return "Shader"; }
-	bool has_main_screen() const { return false; }
-	virtual void edit(Object *p_object);
-	virtual bool handles(Object *p_object) const;
-	virtual void make_visible(bool p_visible);
-	virtual void selected_notify();
+	virtual String get_name() const override { return "Shader"; }
+	bool has_main_screen() const override { return false; }
+	virtual void edit(Object *p_object) override;
+	virtual bool handles(Object *p_object) const override;
+	virtual void make_visible(bool p_visible) override;
+	virtual void selected_notify() override;
 
 	ShaderEditor *get_shader_editor() const { return shader_editor; }
 
-	virtual void save_external_data();
-	virtual void apply_changes();
+	virtual void save_external_data() override;
+	virtual void apply_changes() override;
 
 	ShaderEditorPlugin(EditorNode *p_node);
 	~ShaderEditorPlugin();
